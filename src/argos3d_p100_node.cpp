@@ -283,8 +283,8 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	std::stringstream sourcePluginLocation, procPluginLocation;
 	sourcePluginLocation.clear();
 	procPluginLocation.clear();
-	sourcePluginLocation << PMD_PLUGIN_DIR << "digicam";
-	procPluginLocation << PMD_PLUGIN_DIR << "digicamproc";
+	sourcePluginLocation << PMD_PLUGIN_DIR << "camboardnano";
+	procPluginLocation << PMD_PLUGIN_DIR << "camboardnanoproc";
 
 	// If the camera is not connected at all, we will get an segmentation fault.
 	res = pmdOpen (&hnd, sourcePluginLocation.str().c_str(), SOURCE_PARAM, procPluginLocation.str().c_str(), PROC_PARAM);
@@ -296,7 +296,17 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	}
 
 	char result[128];
-	result[0] = 0;
+	//result[0] = 0;
+        //res = pmdSourceCommand( hnd, result, 128, "LoadCalibrationData 11220935.dat");
+        //if (res != PMD_OK)
+	//{
+	//	pmdGetLastError (0, err, 128);
+	//	ROS_ERROR_STREAM("Could not execute source command: " << err);
+	//	pmdClose (hnd);
+	//	return 0;
+	//}
+
+        result[0] = 0;
 	res = pmdSourceCommand(hnd, result, sizeof(result), "IsCalibrationDataLoaded");
 	if (res != PMD_OK)
 	{
@@ -305,7 +315,7 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 		pmdClose (hnd);
 		return 0;
 	}
-	if (std::string(result) == "YES")
+	if (std::string(result) == "Yes")
 		ROS_INFO("Calibration file loaded.");
 	else
 		ROS_INFO("No calibration file found");
