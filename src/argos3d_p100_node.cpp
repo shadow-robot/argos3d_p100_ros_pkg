@@ -72,6 +72,7 @@ int integrationTime;
 int modulationFrequency;
 int frameRate;
 bool bilateralFilter;
+bool hideInvalidPixels;
 int flip_x, flip_y;
 
 bool AmplitudeFilterOn;
@@ -191,6 +192,8 @@ void callback(argos3d_p100::argos3d_p100Config &config, uint32_t level)
 			ROS_WARN_STREAM("Could not set bilateral filter: " << err);
 		}
 	}
+
+    hideInvalidPixels = config.Hide_Invalid_Pixels;
 
 	flip_x = flip_y = 1;
 	if (config.Flip_X)
@@ -354,7 +357,7 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	 */
 	pub_non_filtered = nh.advertise<PointCloud> ("depth_non_filtered", 1);
 	pub_filtered = nh.advertise<PointCloud> ("depth_filtered", 1);
-	dataPublished=true;
+    dataPublished=true;
 	return 1;
 }
 
@@ -376,7 +379,7 @@ int publishData() {
 	if (res != PMD_OK)
 	{
 		pmdGetLastError (hnd, err, 128);
-		ROS_ERROR_STREAM("Could transfer data: " << err);
+        ROS_ERROR_STREAM("Could not transfer data: " << err);
 		pmdClose (hnd);
 		return 0;
 	}
@@ -390,7 +393,7 @@ int publishData() {
 	if (res != PMD_OK)
 	{
 		pmdGetLastError (hnd, err, 128);
-		ROS_ERROR_STREAM("Could get cartesian coordinates: " << err);
+        ROS_ERROR_STREAM("Could not get cartesian coordinates: " << err);
 		pmdClose (hnd);
 		return 0;
 	}
@@ -406,10 +409,23 @@ int publishData() {
 	if (res != PMD_OK)
 	{
 		pmdGetLastError (hnd, err, 128);
-		ROS_ERROR_STREAM("Could get amplitude values: " << err);
+        ROS_ERROR_STREAM("Could not get amplitude values: " << err);
 		pmdClose (hnd);
 		return 1;
 	}
+
+    /*
+     * Obtain Flag Values
+     */
+    unsigned flags[noOfRows * noOfColumns];
+    res = pmdGetFlags (hnd, flags, sizeof(flags));
+    if (res != PMD_OK)
+    {
+        pmdGetLastError (hnd, err, 128);
+        ROS_ERROR_STREAM("Could not get flags: " << err);
+        pmdClose (hnd);
+        return 1;
+    }
 
 	/*
 	 * Creating the pointcloud
@@ -422,28 +438,34 @@ int publishData() {
 	msg_non_filtered->width = noOfRows*noOfColumns;
 	
 	PointCloud::Ptr msg_filtered (new PointCloud);
-	msg_filtered->header.frame_id = "tf_argos3d";
-	msg_filtered->width    = 1;
-	msg_filtered->height   = noOfColumns*noOfRows;
+	msg_filtered->header.frame_id = "tf_argos3d";	
+    msg_filtered->height   = 1;
+    msg_filtered->width    = noOfColumns*noOfRows;
 	msg_filtered->is_dense = false;
 	//msg_filtered->points.resize (noOfRows*noOfColumns);
 
 	int countWidth=0;
+    int countWidthNonFiltered=0;
 
 	for (size_t i = 0; i < noOfRows*noOfColumns; ++i)	{
-		pcl::PointXYZI temp_point;
-		temp_point.x = cartesianDist[(i*3) + 0]*flip_x;
-	 	temp_point.y = cartesianDist[(i*3) + 1]*flip_y;
-	 	temp_point.z = cartesianDist[(i*3) + 2];
-	 	temp_point.intensity = amplitudes[i];
+        if (!((flags[i] & PMD_FLAG_INVALID) && hideInvalidPixels))
+        {
+          pcl::PointXYZI temp_point;
+          temp_point.x = cartesianDist[(i*3) + 0]*flip_x;
+          temp_point.y = cartesianDist[(i*3) + 1]*flip_y;
+          temp_point.z = cartesianDist[(i*3) + 2];
+          temp_point.intensity = amplitudes[i];
 
-		if(AmplitudeFilterOn==true && amplitudes[i]>AmplitudeThreshold) {
-			msg_filtered->points.push_back(temp_point);
-			countWidth++;
-		}
-		msg_non_filtered->points.push_back(temp_point);
+          if(AmplitudeFilterOn==true && amplitudes[i]>AmplitudeThreshold) {
+              msg_filtered->points.push_back(temp_point);
+              countWidth++;
+          }
+          msg_non_filtered->points.push_back(temp_point);
+          countWidthNonFiltered++;
+        }
 	}
-	msg_filtered->height   = countWidth;
+    msg_filtered->width   = countWidth;
+    msg_non_filtered->width = countWidthNonFiltered;
 
 	 /*
 	  * Publishing the messages
