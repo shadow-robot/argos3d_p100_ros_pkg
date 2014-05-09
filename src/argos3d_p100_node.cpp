@@ -100,7 +100,7 @@ ros::Publisher pub_filtered;
 /**
  *
  * @brief This method prints help in command line if given --help option
- * or if there is any error in the options 
+ * or if there is any error in the options
  *
  */
 int help() {
@@ -122,8 +122,8 @@ int help() {
 
 /**
  *
- * @brief Callback for rqt_reconfigure. It is called any time we change a 
- * parameter in the visual interface 
+ * @brief Callback for rqt_reconfigure. It is called any time we change a
+ * parameter in the visual interface
  *
  * @param [in] argos3d_p100::argos3d_p100Config
  * @param [in] uint32_t
@@ -137,15 +137,15 @@ void callback(argos3d_p100::argos3d_p100Config &config, uint32_t level)
 		config.Modulation_Frequency = modulationFrequency;
 		config.Frame_rate = frameRate;
 		config.Bilateral_Filter = !bilateralFilter;
-		
+
 		if (flip_x == -1)
 			config.Flip_X = true;
 		if (flip_y == -1)
-			config.Flip_Y = true;	
+			config.Flip_Y = true;
 
 		config.Amplitude_Filter_On = AmplitudeFilterOn;
 		config.Amplitude_Threshold = AmplitudeThreshold;
-		
+
 		integrationTime = modulationFrequency = frameRate = -1;
 	}
 
@@ -167,7 +167,7 @@ void callback(argos3d_p100::argos3d_p100Config &config, uint32_t level)
 			ROS_WARN_STREAM("Could not set modulation frequency: " << err);
 		}
 	}
-	
+
 	if(frameRate != config.Frame_rate) {
 		frameRate = config.Frame_rate;
 		err[0] = 0;
@@ -222,16 +222,16 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	modulationFrequency = 30000000;
 	frameRate = 40;
 	bilateralFilter = false;
-	
+
 	flip_x = flip_y = 1;
-	
+
 	AmplitudeFilterOn = false;
 	AmplitudeThreshold = 0;
 
 	for( int i = 1; i < argc; i++) {
 		// reading width
 		if( std::string(argv[i]) == "-it" ) {
-			if( sscanf(argv[++i], "%d", &integrationTime) != 1 
+			if( sscanf(argv[++i], "%d", &integrationTime) != 1
 				|| integrationTime < 100 || integrationTime > 2700 ) {
 				ROS_WARN("*invalid integration time");
 				return help();
@@ -239,14 +239,14 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 		}
 		// reading heigth
 		else if( std::string(argv[i]) == "-mf" ) {
-			if( sscanf(argv[++i], "%d", &modulationFrequency) != 1 
+			if( sscanf(argv[++i], "%d", &modulationFrequency) != 1
 				|| modulationFrequency < 5000000 || modulationFrequency > 30000000 ) {
 				ROS_WARN("*invalid modulation frequency");
 				return help();
 			}
 		}
 		if( std::string(argv[i]) == "-fr" ) {
-			if( sscanf(argv[++i], "%d", &frameRate) != 1 
+			if( sscanf(argv[++i], "%d", &frameRate) != 1
 				|| frameRate < 1 || frameRate > 40 ) {
 				ROS_WARN("*invalid frame rate");
 				return help();
@@ -263,22 +263,22 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 			AmplitudeFilterOn = true;
 		}
 		else if( std::string(argv[i]) == "-at" ) {
-			if( sscanf(argv[++i], "%f", &AmplitudeThreshold) != 1 
+			if( sscanf(argv[++i], "%f", &AmplitudeThreshold) != 1
 				|| AmplitudeThreshold < 0 || AmplitudeThreshold > 2500 ) {
 				ROS_WARN("*invalid amplitude threshold");
 				return help();
-			}	
+			}
 		}
 		// print help
 		else if( std::string(argv[i]) == "--help" ) {
-			ROS_WARN_STREAM("arguments: " << argc << " which: " << argv[i]);		
+			ROS_WARN_STREAM("arguments: " << argc << " which: " << argv[i]);
 			return help();
 		}
 		else if( argv[i][0] == '-' ) {
 			ROS_WARN_STREAM("invalid option " << argv[i]);
 			return help();
 		}
-	} 	
+	}
 
 	/*
 	 * Camera Initialization
@@ -361,6 +361,7 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	return 1;
 }
 
+static float * distances = 0;
 static float * cartesianDist = 0;
 static float * amplitudes = 0;
 
@@ -384,6 +385,19 @@ int publishData() {
 		return 0;
 	}
 
+        /*
+         * Obtain depth map
+         */
+	if (!distances)
+        {
+          // Xres and Yres are obtained from PMDDataDescription struct
+          distances = new float[noOfColumns * noOfRows];
+        }
+        res = pmdGetDistances(hnd, distances , sizeof(float) * noOfColumns * noOfRows);
+        if (res != PMD_OK) {
+          // error
+        }
+
 	/*
 	 * Obtain PointClouds
 	 */
@@ -397,7 +411,6 @@ int publishData() {
 		pmdClose (hnd);
 		return 0;
 	}
-
 
 	/*
 	 * Obtain Amplitude Values
@@ -430,15 +443,15 @@ int publishData() {
 	/*
 	 * Creating the pointcloud
 	 */
-	 
+
 	// Fill in the cloud data
 	PointCloud::Ptr msg_non_filtered (new PointCloud);
 	msg_non_filtered->header.frame_id = "tf_argos3d";
 	msg_non_filtered->height = 1;
 	msg_non_filtered->width = noOfRows*noOfColumns;
-	
+
 	PointCloud::Ptr msg_filtered (new PointCloud);
-	msg_filtered->header.frame_id = "tf_argos3d";	
+	msg_filtered->header.frame_id = "tf_argos3d";
     msg_filtered->height   = 1;
     msg_filtered->width    = noOfColumns*noOfRows;
 	msg_filtered->is_dense = false;
