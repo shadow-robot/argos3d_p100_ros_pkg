@@ -394,8 +394,12 @@ int publishData() {
           distances = new float[noOfColumns * noOfRows];
         }
         res = pmdGetDistances(hnd, distances , sizeof(float) * noOfColumns * noOfRows);
-        if (res != PMD_OK) {
-          // error
+        if (res != PMD_OK)
+        {
+          pmdGetLastError (hnd, err, 128);
+          ROS_ERROR_STREAM("Could not get the distance data from the current frame. : " << err);
+          pmdClose (hnd);
+          return 0;
         }
 
 	/*
