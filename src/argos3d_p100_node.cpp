@@ -396,6 +396,11 @@ int publishData() {
           // Xres and Yres are obtained from PMDDataDescription struct
           distances = new float[noOfColumns * noOfRows];
         }
+        /*
+         * The pixel orientation is illustrated in the coordinate system figure.
+         * https://support.bluetechnix.at/wiki/File:CoordinateSystem.png
+         * Distances are in [m].
+         */
         res = pmdGetDistances(hnd, distances , sizeof(float) * noOfColumns * noOfRows);
         if (res != PMD_OK)
         {
@@ -407,6 +412,13 @@ int publishData() {
 
         // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
         cv::Mat float_image = cv::Mat::ones(noOfRows, noOfColumns, CV_32F);
+        for (size_t i = 0; i < noOfRows; i++) {
+          for (size_t j = 0; j < noOfColumns; j++) {
+            // Observe the type used in the template
+            float_image.at<float>(i,j) = distances[noOfRows*i + j];
+          }
+        }
+
         cv_bridge::CvImage out_msg;
         out_msg.header.frame_id = "tf_argos3d";
         out_msg.header.stamp    = ros::Time::now();
