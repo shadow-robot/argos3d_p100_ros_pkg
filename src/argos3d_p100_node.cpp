@@ -51,6 +51,8 @@
 #include <pcl/point_types.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
 
 #include <stdio.h>
 #include <time.h>
@@ -96,6 +98,7 @@ char err[128];
 bool dataPublished;
 ros::Publisher pub_non_filtered;
 ros::Publisher pub_filtered;
+ros::Publisher pub_distances;
 
 /**
  *
@@ -401,6 +404,16 @@ int publishData() {
           pmdClose (hnd);
           return 0;
         }
+
+        // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
+        cv::Mat float_image = cv::Mat::ones(noOfRows, noOfColumns, CV_32F);
+        cv_bridge::CvImage out_msg;
+        out_msg.header.frame_id = "tf_argos3d";
+        out_msg.header.stamp    = ros::Time::now();
+        out_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
+        out_msg.image           = float_image;
+        boost::shared_ptr<sensor_msgs::Image> ros_image = out_msg.toImageMsg();
+        pub_distances.publish(out_msg.toImageMsg());
 
 	/*
 	 * Obtain PointClouds

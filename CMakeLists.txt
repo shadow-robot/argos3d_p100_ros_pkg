@@ -11,13 +11,14 @@ add_definitions(-DPMD_PLUGIN_DIR="${PMD_PLUGIN_DIR}/")
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
+  cv_bridge
   pcl_ros
   roscpp
   roslib
   rospy
   sensor_msgs
   std_msgs
-  tf  
+  tf
 )
 
 
@@ -54,7 +55,7 @@ include_directories(
 ## Declare a cpp executable
 add_executable(argos3d_p100_node src/argos3d_p100_node.cpp)
 
-add_dependencies(argos3d_p100_node ${PROJECT_NAME}_gencfg) 
+add_dependencies(argos3d_p100_node ${PROJECT_NAME}_gencfg)
 
 target_link_libraries(argos3d_p100_node ${PMD_LIBRARY} ${catkin_LIBRARIES})
 
