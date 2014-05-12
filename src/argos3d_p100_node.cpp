@@ -54,6 +54,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/CameraInfo.h>
+#include <sensor_msgs/distortion_models.h>
 
 #include <stdio.h>
 #include <time.h>
@@ -372,6 +373,81 @@ static float * distances = 0;
 static float * cartesianDist = 0;
 static float * amplitudes = 0;
 
+/*
+ * https://github.com/taketwo/pmd_camboard_nano/blob/master/src/pmd_camboard_nano.cpp
+ */
+boost::shared_ptr<sensor_msgs::CameraInfo> getCameraInfo()
+{
+  boost::shared_ptr<sensor_msgs::CameraInfo> info;
+
+  PMDDataDescription desc;
+  res = pmdGetSourceDataDescription(hnd, &desc);
+  if (res != PMD_OK)
+  {
+    pmdGetLastError (hnd, err, 128);
+    ROS_ERROR_STREAM("Could not get source data description: " << err);
+    pmdClose (hnd);
+    return info; // null pointer
+  }
+
+  int num_rows = desc.img.numRows;
+  int num_columns = desc.img.numColumns;
+  int num_pixels = num_rows * num_columns;
+  char lens[128];
+  res = pmdSourceCommand(hnd, lens, 128, "GetLensParameters");
+  if (res != PMD_OK)
+  {
+    pmdGetLastError (hnd, err, 128);
+    ROS_ERROR_STREAM("Could not get lens parameters: " << err);
+    pmdClose (hnd);
+    return info; // null pointer
+  }
+
+  info = boost::make_shared<sensor_msgs::CameraInfo>();
+  info->header.stamp = ros::Time::now();
+  info->width = num_columns;
+  info->height = num_rows;
+  info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
+  info->D.resize(5, 0.0);
+  info->K.assign(0.0);
+  info->P.assign(0.0);
+  info->R.assign(0.0);
+
+  double fx, fy, cx, cy, k1, k2, p1, p2, k3;
+  if (sscanf(lens, "%lf %lf %lf %lf %lf %lf %lf %lf %lf", &fx, &fy, &cx, &cy, &k1, &k2, &p1, &p2, &k3) == 9)
+  {
+    info->D[0] = k1;
+    info->D[1] = k2;
+    info->D[2] = p1;
+    info->D[3] = p2;
+    info->D[4] = k3;
+    info->K[0] = info->P[0] = fx;
+    info->K[2] = info->P[2] = cx;
+    info->K[4] = info->P[5] = fy;
+    info->K[5] = info->P[6] = cy;
+    info->K[8] = info->P[10] = 1.0;
+    info->R[0] = info->R[4] = info->R[8] = 1.0;
+  }
+  else
+  {
+    // These numbers come from a forum post at www.cayim.com
+    // https://www.cayim.com/forum/index.php?/topic/33-intrinsics-and-calibration/#entry125
+    // Seems like most (all?) cameras are shipped with these calibration parameters.
+    info->D[0] = -0.222609;
+    info->D[1] = 0.063022;
+    info->D[2] = 0.002865;
+    info->D[3] = -0.001446;
+    info->D[4] = 0;
+    info->K[0] = info->P[0] = 104.119;
+    info->K[2] = info->P[2] = 81.9494;
+    info->K[4] = info->P[5] = 103.588;
+    info->K[5] = info->P[6] = 59.4392;
+    info->K[8] = info->P[10] = 1.0;
+    info->R[0] = info->R[4] = info->R[8] = 1.0;
+  }
+
+  return info;
+}
 
 /**
  *
@@ -391,6 +467,11 @@ int publishData() {
 		pmdClose (hnd);
 		return 0;
 	}
+
+        /*
+         * Obtain camera info
+         */
+
 
         /*
          * Obtain depth map
@@ -532,6 +613,10 @@ int publishData() {
 
         // Convert to boost::shared_ptr<sensor_msgs::Image> before publishing.
         pub_distances.publish( depth_map_msg.toImageMsg() );
+
+        boost::shared_ptr<sensor_msgs::CameraInfo> camera_info_msg = getCameraInfo();
+        if (camera_info_msg)
+          pub_camera_info.publish(camera_info_msg);
 
 	return 1;
 }
