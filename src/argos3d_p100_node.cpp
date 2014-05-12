@@ -365,9 +365,9 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	/*
 	 * ROS Node Initialization
 	 */
-	pub_non_filtered = nh.advertise<PointCloud> ("depth_non_filtered", 1);
-	pub_filtered = nh.advertise<PointCloud> ("depth_filtered", 1);
-        pub_distances = nh.advertise<sensor_msgs::Image> ("depth/depth_map", 1);
+	pub_non_filtered = nh.advertise<PointCloud> ("depth_non_filtered/points", 1);
+	pub_filtered = nh.advertise<PointCloud> ("depth/points", 1);
+        pub_distances = nh.advertise<sensor_msgs::Image> ("depth/image", 1);
         pub_camera_info = nh.advertise<sensor_msgs::CameraInfo> ("depth/camera_info", 1);
         dataPublished=true;
 	return 1;
