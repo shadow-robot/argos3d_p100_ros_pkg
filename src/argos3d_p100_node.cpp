@@ -469,11 +469,6 @@ int publishData() {
 	}
 
         /*
-         * Obtain camera info
-         */
-
-
-        /*
          * Obtain depth map
          */
 	if (!distances)
