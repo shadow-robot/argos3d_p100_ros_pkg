@@ -415,9 +415,9 @@ int publishData() {
         cv::Mat float_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
         for (size_t row = 0; row < noOfRows; row++) {
           for (size_t col = 0; col < noOfColumns; col++) {
+            // (noOfRows-row-1): To flip a upside-down image
             // Observe the type used in the template
-            float_image.at<float>(row, col) = distances[noOfColumns*row + col];
-            // ROS_ERROR_STREAM(row << ", " << col << " : " << distances[row*noOfColumns + col]);
+            float_image.at<float>(noOfRows-row-1, col) = distances[noOfColumns*row + col];
           }
         }
 
