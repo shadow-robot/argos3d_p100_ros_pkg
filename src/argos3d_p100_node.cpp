@@ -412,11 +412,12 @@ int publishData() {
         }
 
         // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
-        cv::Mat float_image = cv::Mat::ones(noOfRows, noOfColumns, CV_32F);
+        cv::Mat float_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
         for (size_t row = 0; row < noOfRows; row++) {
           for (size_t col = 0; col < noOfColumns; col++) {
             // Observe the type used in the template
-            float_image.at<float>(row, col) = distances[noOfRows*row + col];
+            float_image.at<float>(row, col) = distances[noOfColumns*row + col];
+            // ROS_ERROR_STREAM(row << ", " << col << " : " << distances[row*noOfColumns + col]);
           }
         }
 
