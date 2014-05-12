@@ -51,6 +51,10 @@
 #include <pcl/point_types.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
+#include <sensor_msgs/CameraInfo.h>
+#include <sensor_msgs/distortion_models.h>
 
 #include <stdio.h>
 #include <time.h>
@@ -96,11 +100,17 @@ char err[128];
 bool dataPublished;
 ros::Publisher pub_non_filtered;
 ros::Publisher pub_filtered;
+ros::Publisher pub_distances;
+ros::Publisher pub_camera_info;
+
+boost::shared_ptr<sensor_msgs::CameraInfo> camera_info_msg;
+
+std::string frame_id;
 
 /**
  *
  * @brief This method prints help in command line if given --help option
- * or if there is any error in the options 
+ * or if there is any error in the options
  *
  */
 int help() {
@@ -122,8 +132,8 @@ int help() {
 
 /**
  *
- * @brief Callback for rqt_reconfigure. It is called any time we change a 
- * parameter in the visual interface 
+ * @brief Callback for rqt_reconfigure. It is called any time we change a
+ * parameter in the visual interface
  *
  * @param [in] argos3d_p100::argos3d_p100Config
  * @param [in] uint32_t
@@ -137,15 +147,15 @@ void callback(argos3d_p100::argos3d_p100Config &config, uint32_t level)
 		config.Modulation_Frequency = modulationFrequency;
 		config.Frame_rate = frameRate;
 		config.Bilateral_Filter = !bilateralFilter;
-		
+
 		if (flip_x == -1)
 			config.Flip_X = true;
 		if (flip_y == -1)
-			config.Flip_Y = true;	
+			config.Flip_Y = true;
 
 		config.Amplitude_Filter_On = AmplitudeFilterOn;
 		config.Amplitude_Threshold = AmplitudeThreshold;
-		
+
 		integrationTime = modulationFrequency = frameRate = -1;
 	}
 
@@ -167,7 +177,7 @@ void callback(argos3d_p100::argos3d_p100Config &config, uint32_t level)
 			ROS_WARN_STREAM("Could not set modulation frequency: " << err);
 		}
 	}
-	
+
 	if(frameRate != config.Frame_rate) {
 		frameRate = config.Frame_rate;
 		err[0] = 0;
@@ -222,16 +232,16 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	modulationFrequency = 30000000;
 	frameRate = 40;
 	bilateralFilter = false;
-	
+
 	flip_x = flip_y = 1;
-	
+
 	AmplitudeFilterOn = false;
 	AmplitudeThreshold = 0;
 
 	for( int i = 1; i < argc; i++) {
 		// reading width
 		if( std::string(argv[i]) == "-it" ) {
-			if( sscanf(argv[++i], "%d", &integrationTime) != 1 
+			if( sscanf(argv[++i], "%d", &integrationTime) != 1
 				|| integrationTime < 100 || integrationTime > 2700 ) {
 				ROS_WARN("*invalid integration time");
 				return help();
@@ -239,14 +249,14 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 		}
 		// reading heigth
 		else if( std::string(argv[i]) == "-mf" ) {
-			if( sscanf(argv[++i], "%d", &modulationFrequency) != 1 
+			if( sscanf(argv[++i], "%d", &modulationFrequency) != 1
 				|| modulationFrequency < 5000000 || modulationFrequency > 30000000 ) {
 				ROS_WARN("*invalid modulation frequency");
 				return help();
 			}
 		}
 		if( std::string(argv[i]) == "-fr" ) {
-			if( sscanf(argv[++i], "%d", &frameRate) != 1 
+			if( sscanf(argv[++i], "%d", &frameRate) != 1
 				|| frameRate < 1 || frameRate > 40 ) {
 				ROS_WARN("*invalid frame rate");
 				return help();
@@ -263,22 +273,22 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 			AmplitudeFilterOn = true;
 		}
 		else if( std::string(argv[i]) == "-at" ) {
-			if( sscanf(argv[++i], "%f", &AmplitudeThreshold) != 1 
+			if( sscanf(argv[++i], "%f", &AmplitudeThreshold) != 1
 				|| AmplitudeThreshold < 0 || AmplitudeThreshold > 2500 ) {
 				ROS_WARN("*invalid amplitude threshold");
 				return help();
-			}	
+			}
 		}
 		// print help
 		else if( std::string(argv[i]) == "--help" ) {
-			ROS_WARN_STREAM("arguments: " << argc << " which: " << argv[i]);		
+			ROS_WARN_STREAM("arguments: " << argc << " which: " << argv[i]);
 			return help();
 		}
 		else if( argv[i][0] == '-' ) {
 			ROS_WARN_STREAM("invalid option " << argv[i]);
 			return help();
 		}
-	} 	
+	}
 
 	/*
 	 * Camera Initialization
@@ -355,15 +365,119 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	/*
 	 * ROS Node Initialization
 	 */
-	pub_non_filtered = nh.advertise<PointCloud> ("depth_non_filtered", 1);
-	pub_filtered = nh.advertise<PointCloud> ("depth_filtered", 1);
-    dataPublished=true;
+	pub_non_filtered = nh.advertise<PointCloud> ("depth_non_filtered/points", 1);
+	pub_filtered = nh.advertise<PointCloud> ("depth/points", 1);
+        pub_distances = nh.advertise<sensor_msgs::Image> ("depth/image", 1);
+        pub_camera_info = nh.advertise<sensor_msgs::CameraInfo> ("depth/camera_info", 1);
+        dataPublished=true;
 	return 1;
 }
 
+static float * distances = 0;
 static float * cartesianDist = 0;
 static float * amplitudes = 0;
 
+/*
+ * https://github.com/taketwo/pmd_camboard_nano/blob/master/src/pmd_camboard_nano.cpp
+ */
+boost::shared_ptr<sensor_msgs::CameraInfo> getCameraInfo()
+{
+  boost::shared_ptr<sensor_msgs::CameraInfo> info;
+
+  PMDDataDescription desc;
+  res = pmdGetSourceDataDescription(hnd, &desc);
+  if (res != PMD_OK)
+  {
+    pmdGetLastError (hnd, err, 128);
+    ROS_ERROR_STREAM("Could not get source data description: " << err);
+    pmdClose (hnd);
+    return info; // null pointer
+  }
+
+  int num_rows = desc.img.numRows;
+  int num_columns = desc.img.numColumns;
+  int num_pixels = num_rows * num_columns;
+  char lens[128];
+  res = pmdSourceCommand(hnd, lens, 128, "GetLensParameters");
+  if (res != PMD_OK)
+  {
+    pmdGetLastError (hnd, err, 128);
+    ROS_ERROR_STREAM("Could not get lens parameters: " << err);
+    pmdClose (hnd);
+    return info; // null pointer
+  }
+
+  info = boost::make_shared<sensor_msgs::CameraInfo>();
+  info->header.frame_id = frame_id;
+  info->header.stamp = ros::Time::now();
+  info->width = num_columns;
+  info->height = num_rows;
+  info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
+  info->D.resize(5, 0.0);
+  info->K.assign(0.0);
+  info->P.assign(0.0);
+  info->R.assign(0.0);
+
+  double fx, fy, cx, cy, k1, k2, p1, p2, k3;
+  if (sscanf(lens, "%lf %lf %lf %lf %lf %lf %lf %lf %lf", &fx, &fy, &cx, &cy, &k1, &k2, &p1, &p2, &k3) == 9)
+  {
+    info->D[0] = k1;
+    info->D[1] = k2;
+    info->D[2] = p1;
+    info->D[3] = p2;
+    info->D[4] = k3;
+    info->K[0] = info->P[0] = fx;
+    info->K[2] = info->P[2] = cx;
+    info->K[4] = info->P[5] = fy;
+    info->K[5] = info->P[6] = cy;
+    info->K[8] = info->P[10] = 1.0;
+    info->R[0] = info->R[4] = info->R[8] = 1.0;
+  }
+  else
+  {
+    // These numbers come from a forum post at www.cayim.com
+    // https://www.cayim.com/forum/index.php?/topic/33-intrinsics-and-calibration/#entry125
+    // Seems like most (all?) cameras are shipped with these calibration parameters.
+    info->D[0] = -0.222609;
+    info->D[1] = 0.063022;
+    info->D[2] = 0.002865;
+    info->D[3] = -0.001446;
+    info->D[4] = 0;
+    info->K[0] = info->P[0] = 104.119;
+    info->K[2] = info->P[2] = 81.9494;
+    info->K[4] = info->P[5] = 103.588;
+    info->K[5] = info->P[6] = 59.4392;
+    info->K[8] = info->P[10] = 1.0;
+    info->R[0] = info->R[4] = info->R[8] = 1.0;
+  }
+
+  return info;
+}
+
+/**
+ *
+ * @brief Convert the depth map to sensor_msgs::Image.
+ *
+ */
+boost::shared_ptr<sensor_msgs::Image> depthMaptoImageMsg()
+{
+  // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
+  cv::Mat float_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
+  for (size_t row = 0; row < noOfRows; row++) {
+    for (size_t col = 0; col < noOfColumns; col++) {
+      // Observe the type used in the template
+      float_image.at<float>(noOfRows-row-1, noOfColumns-col-1) = distances[noOfColumns*row + col];
+    }
+  }
+
+  cv_bridge::CvImage depth_map_msg;
+  depth_map_msg.header.frame_id = frame_id;
+  depth_map_msg.header.stamp    = ros::Time::now();
+  depth_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
+  depth_map_msg.image           = float_image;
+
+  return depth_map_msg.toImageMsg();
+}
 
 /**
  *
@@ -398,7 +512,6 @@ int publishData() {
 		return 0;
 	}
 
-
 	/*
 	 * Obtain Amplitude Values
 	 */
@@ -414,31 +527,54 @@ int publishData() {
 		return 1;
 	}
 
-    /*
-     * Obtain Flag Values
-     */
-    unsigned flags[noOfRows * noOfColumns];
-    res = pmdGetFlags (hnd, flags, sizeof(flags));
-    if (res != PMD_OK)
-    {
-        pmdGetLastError (hnd, err, 128);
-        ROS_ERROR_STREAM("Could not get flags: " << err);
-        pmdClose (hnd);
-        return 1;
-    }
+        /*
+         * Obtain depth map
+         */
+	if (!distances)
+        {
+          // Xres and Yres are obtained from PMDDataDescription struct
+          distances = new float[noOfColumns * noOfRows];
+        }
+
+        /*
+         * The pixel orientation is illustrated in the coordinate system figure.
+         * https://support.bluetechnix.at/wiki/File:CoordinateSystem.png
+         * Distances are in [m].
+         */
+        res = pmdGetDistances(hnd, distances, sizeof(float) * noOfColumns * noOfRows);
+        if (res != PMD_OK)
+        {
+          pmdGetLastError (hnd, err, 128);
+          ROS_ERROR_STREAM("Could not get the distance data from the current frame. : " << err);
+          pmdClose (hnd);
+          return 0;
+        }
+
+        /*
+         * Obtain Flag Values
+         */
+        unsigned flags[noOfRows * noOfColumns];
+        res = pmdGetFlags (hnd, flags, sizeof(flags));
+        if (res != PMD_OK)
+        {
+          pmdGetLastError (hnd, err, 128);
+          ROS_ERROR_STREAM("Could not get flags: " << err);
+          pmdClose (hnd);
+          return 1;
+        }
 
 	/*
 	 * Creating the pointcloud
 	 */
-	 
+
 	// Fill in the cloud data
 	PointCloud::Ptr msg_non_filtered (new PointCloud);
-	msg_non_filtered->header.frame_id = "tf_argos3d";
+	msg_non_filtered->header.frame_id = frame_id;
 	msg_non_filtered->height = 1;
 	msg_non_filtered->width = noOfRows*noOfColumns;
-	
+
 	PointCloud::Ptr msg_filtered (new PointCloud);
-	msg_filtered->header.frame_id = "tf_argos3d";	
+	msg_filtered->header.frame_id = frame_id;
     msg_filtered->height   = 1;
     msg_filtered->width    = noOfColumns*noOfRows;
 	msg_filtered->is_dense = false;
@@ -486,6 +622,17 @@ int publishData() {
 	#endif
 		pub_non_filtered.publish (msg_non_filtered);
 
+        // Convert to boost::shared_ptr<sensor_msgs::Image> before publishing.
+        pub_distances.publish(depthMaptoImageMsg());
+
+        if (!camera_info_msg)
+          camera_info_msg = getCameraInfo();
+        else
+        {
+          camera_info_msg->header.stamp = ros::Time::now();
+          pub_camera_info.publish(camera_info_msg);
+        }
+
 	return 1;
 }
 
@@ -501,6 +648,15 @@ int main(int argc, char *argv[]) {
 	ROS_INFO("Starting argos3d_p100 ros...");
 	ros::init (argc, argv, "argos3d_p100");
 	ros::NodeHandle nh;
+
+        if (nh.getParam("frame_id", frame_id))
+        {
+          ROS_INFO("Got param: %s", frame_id.c_str());
+        }
+        else
+        {
+          ROS_ERROR("Failed to get param 'frame_id'");
+        }
 
 	dynamic_reconfigure::Server<argos3d_p100::argos3d_p100Config> srv;
 	dynamic_reconfigure::Server<argos3d_p100::argos3d_p100Config>::CallbackType f;

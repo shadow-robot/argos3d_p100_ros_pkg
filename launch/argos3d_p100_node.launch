@@ -1,0 +1,4 @@
+<launch>
+  <node name="argos3d_p100_node" pkg="argos3d_p100" type="argos3d_p100_node" respawn="false" output="screen" />
+  <param name="frame_id" value="camera_base_link" type="str" />
+</launch>
