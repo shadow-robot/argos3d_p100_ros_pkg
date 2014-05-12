@@ -569,8 +569,9 @@ int publishData() {
         const unsigned int INVALID = PMD_FLAG_INVALID | PMD_FLAG_LOW_SIGNAL | PMD_FLAG_INCONSISTENT;
         for (size_t i = 0; i < noOfColumns * noOfRows; ++i)
         {
-          if (flags[i] & INVALID)
-            distances[i] = std::numeric_limits<float>::quiet_NaN();
+          if (hideInvalidPixels)
+            if (flags[i] & INVALID)
+              distances[i] = std::numeric_limits<float>::quiet_NaN();
         }
 
 	/*
