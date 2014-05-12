@@ -52,6 +52,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/distortion_models.h>
@@ -100,8 +101,10 @@ char err[128];
 bool dataPublished;
 ros::Publisher pub_non_filtered;
 ros::Publisher pub_filtered;
-ros::Publisher pub_distances;
 ros::Publisher pub_camera_info;
+
+boost::shared_ptr<image_transport::ImageTransport> it_depth_image;
+image_transport::Publisher pub_depth_image;
 
 boost::shared_ptr<sensor_msgs::CameraInfo> camera_info_msg;
 
@@ -367,10 +370,14 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	 */
 	pub_non_filtered = nh.advertise<PointCloud> ("depth_non_filtered/points", 1);
 	pub_filtered = nh.advertise<PointCloud> ("depth/points", 1);
-        pub_distances = nh.advertise<sensor_msgs::Image> ("depth/image", 1);
         pub_camera_info = nh.advertise<sensor_msgs::CameraInfo> ("depth/camera_info", 1);
-        dataPublished=true;
-	return 1;
+
+        // Use image transport
+        pub_depth_image = it_depth_image->advertise("depth/image", 1);
+
+        dataPublished = true;
+
+        return 1;
 }
 
 static float * distances = 0;
@@ -634,7 +641,7 @@ int publishData() {
 		pub_non_filtered.publish (msg_non_filtered);
 
         // Convert to boost::shared_ptr<sensor_msgs::Image> before publishing.
-        pub_distances.publish(depthMaptoImageMsg());
+        pub_depth_image.publish(depthMaptoImageMsg());
 
         if (!camera_info_msg)
           camera_info_msg = getCameraInfo();
@@ -659,6 +666,8 @@ int main(int argc, char *argv[]) {
 	ROS_INFO("Starting argos3d_p100 ros...");
 	ros::init (argc, argv, "argos3d_p100");
 	ros::NodeHandle nh;
+
+        it_depth_image = boost::make_shared<image_transport::ImageTransport>(nh);
 
         if (nh.getParam("frame_id", frame_id))
         {

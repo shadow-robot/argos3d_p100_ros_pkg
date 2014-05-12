@@ -12,6 +12,7 @@ add_definitions(-DPMD_PLUGIN_DIR="${PMD_PLUGIN_DIR}/")
 find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   cv_bridge
+  image_transport
   pcl_ros
   roscpp
   roslib
@@ -20,7 +21,6 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf
 )
-
 
 generate_dynamic_reconfigure_options(
   cfg/argos3d_p100.cfg
