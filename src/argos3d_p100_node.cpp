@@ -53,6 +53,7 @@
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
+#include <sensor_msgs/CameraInfo.h>
 
 #include <stdio.h>
 #include <time.h>
@@ -99,6 +100,7 @@ bool dataPublished;
 ros::Publisher pub_non_filtered;
 ros::Publisher pub_filtered;
 ros::Publisher pub_distances;
+ros::Publisher pub_camera_info;
 
 /**
  *
@@ -361,6 +363,7 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	pub_non_filtered = nh.advertise<PointCloud> ("depth_non_filtered", 1);
 	pub_filtered = nh.advertise<PointCloud> ("depth_filtered", 1);
         pub_distances = nh.advertise<sensor_msgs::Image> ("depth_map", 1);
+        pub_camera_info = nh.advertise<sensor_msgs::CameraInfo> ("camera_info", 1);
         dataPublished=true;
 	return 1;
 }
