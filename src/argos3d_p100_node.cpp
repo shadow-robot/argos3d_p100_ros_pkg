@@ -412,20 +412,19 @@ int publishData() {
 
         // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
         cv::Mat float_image = cv::Mat::ones(noOfRows, noOfColumns, CV_32F);
-        for (size_t i = 0; i < noOfRows; i++) {
-          for (size_t j = 0; j < noOfColumns; j++) {
+        for (size_t row = 0; row < noOfRows; row++) {
+          for (size_t col = 0; col < noOfColumns; col++) {
             // Observe the type used in the template
-            float_image.at<float>(i,j) = distances[noOfRows*i + j];
+            float_image.at<float>(row, col) = distances[noOfRows*row + col];
           }
         }
 
-        cv_bridge::CvImage out_msg;
-        out_msg.header.frame_id = "tf_argos3d";
-        out_msg.header.stamp    = ros::Time::now();
-        out_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
-        out_msg.image           = float_image;
-        boost::shared_ptr<sensor_msgs::Image> ros_image = out_msg.toImageMsg();
-        pub_distances.publish(out_msg.toImageMsg());
+        cv_bridge::CvImage depth_map_msg;
+        depth_map_msg.header.frame_id = "tf_argos3d";
+        depth_map_msg.header.stamp    = ros::Time::now();
+        depth_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
+        depth_map_msg.image           = float_image;
+        boost::shared_ptr<sensor_msgs::Image> ros_image = depth_map_msg.toImageMsg();
 
 	/*
 	 * Obtain PointClouds
@@ -527,6 +526,8 @@ int publishData() {
 		msg_non_filtered->header.stamp = ros::Time::now();
 	#endif
 		pub_non_filtered.publish (msg_non_filtered);
+
+        pub_distances.publish(depth_map_msg.toImageMsg());
 
 	return 1;
 }
