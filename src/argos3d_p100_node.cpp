@@ -528,6 +528,19 @@ int publishData() {
 	}
 
         /*
+         * Obtain Flag Values
+         */
+        unsigned flags[noOfRows * noOfColumns];
+        res = pmdGetFlags (hnd, flags, sizeof(flags));
+        if (res != PMD_OK)
+        {
+          pmdGetLastError (hnd, err, 128);
+          ROS_ERROR_STREAM("Could not get flags: " << err);
+          pmdClose (hnd);
+          return 1;
+        }
+
+        /*
          * Obtain depth map
          */
 	if (!distances)
@@ -551,16 +564,14 @@ int publishData() {
         }
 
         /*
-         * Obtain Flag Values
+         * Remove invliad pixels from distances
          */
-        unsigned flags[noOfRows * noOfColumns];
-        res = pmdGetFlags (hnd, flags, sizeof(flags));
-        if (res != PMD_OK)
+        const unsigned int INVALID = PMD_FLAG_INVALID | PMD_FLAG_LOW_SIGNAL | PMD_FLAG_INCONSISTENT;
+        for (size_t i = 0; i < noOfColumns * noOfRows; ++i)
         {
-          pmdGetLastError (hnd, err, 128);
-          ROS_ERROR_STREAM("Could not get flags: " << err);
-          pmdClose (hnd);
-          return 1;
+          if (hideInvalidPixels)
+            if (flags[i] & INVALID)
+              distances[i] = std::numeric_limits<float>::quiet_NaN();
         }
 
 	/*
