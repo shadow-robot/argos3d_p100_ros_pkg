@@ -105,6 +105,8 @@ ros::Publisher pub_camera_info;
 
 boost::shared_ptr<sensor_msgs::CameraInfo> camera_info_msg;
 
+std::string frame_id;
+
 /**
  *
  * @brief This method prints help in command line if given --help option
@@ -365,8 +367,8 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	 */
 	pub_non_filtered = nh.advertise<PointCloud> ("depth_non_filtered", 1);
 	pub_filtered = nh.advertise<PointCloud> ("depth_filtered", 1);
-        pub_distances = nh.advertise<sensor_msgs::Image> ("depth_map", 1);
-        pub_camera_info = nh.advertise<sensor_msgs::CameraInfo> ("camera_info", 1);
+        pub_distances = nh.advertise<sensor_msgs::Image> ("depth/depth_map", 1);
+        pub_camera_info = nh.advertise<sensor_msgs::CameraInfo> ("depth/camera_info", 1);
         dataPublished=true;
 	return 1;
 }
@@ -406,7 +408,7 @@ boost::shared_ptr<sensor_msgs::CameraInfo> getCameraInfo()
   }
 
   info = boost::make_shared<sensor_msgs::CameraInfo>();
-  info->header.frame_id = "tf_argos3d";
+  info->header.frame_id = frame_id;
   info->header.stamp = ros::Time::now();
   info->width = num_columns;
   info->height = num_rows;
@@ -469,7 +471,7 @@ boost::shared_ptr<sensor_msgs::Image> depthMaptoImageMsg()
   }
 
   cv_bridge::CvImage depth_map_msg;
-  depth_map_msg.header.frame_id = "tf_argos3d";
+  depth_map_msg.header.frame_id = frame_id;
   depth_map_msg.header.stamp    = ros::Time::now();
   depth_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
   depth_map_msg.image           = float_image;
@@ -567,12 +569,12 @@ int publishData() {
 
 	// Fill in the cloud data
 	PointCloud::Ptr msg_non_filtered (new PointCloud);
-	msg_non_filtered->header.frame_id = "tf_argos3d";
+	msg_non_filtered->header.frame_id = frame_id;
 	msg_non_filtered->height = 1;
 	msg_non_filtered->width = noOfRows*noOfColumns;
 
 	PointCloud::Ptr msg_filtered (new PointCloud);
-	msg_filtered->header.frame_id = "tf_argos3d";
+	msg_filtered->header.frame_id = frame_id;
     msg_filtered->height   = 1;
     msg_filtered->width    = noOfColumns*noOfRows;
 	msg_filtered->is_dense = false;
@@ -646,6 +648,15 @@ int main(int argc, char *argv[]) {
 	ROS_INFO("Starting argos3d_p100 ros...");
 	ros::init (argc, argv, "argos3d_p100");
 	ros::NodeHandle nh;
+
+        if (nh.getParam("frame_id", frame_id))
+        {
+          ROS_INFO("Got param: %s", frame_id.c_str());
+        }
+        else
+        {
+          ROS_ERROR("Failed to get param 'frame_id'");
+        }
 
 	dynamic_reconfigure::Server<argos3d_p100::argos3d_p100Config> srv;
 	dynamic_reconfigure::Server<argos3d_p100::argos3d_p100Config>::CallbackType f;
