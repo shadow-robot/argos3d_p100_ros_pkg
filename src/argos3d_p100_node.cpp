@@ -103,6 +103,8 @@ ros::Publisher pub_filtered;
 ros::Publisher pub_distances;
 ros::Publisher pub_camera_info;
 
+boost::shared_ptr<sensor_msgs::CameraInfo> camera_info_msg;
+
 /**
  *
  * @brief This method prints help in command line if given --help option
@@ -404,6 +406,7 @@ boost::shared_ptr<sensor_msgs::CameraInfo> getCameraInfo()
   }
 
   info = boost::make_shared<sensor_msgs::CameraInfo>();
+  info->header.frame_id = "tf_argos3d";
   info->header.stamp = ros::Time::now();
   info->width = num_columns;
   info->height = num_rows;
@@ -468,43 +471,6 @@ int publishData() {
 		return 0;
 	}
 
-        /*
-         * Obtain depth map
-         */
-	if (!distances)
-        {
-          // Xres and Yres are obtained from PMDDataDescription struct
-          distances = new float[noOfColumns * noOfRows];
-        }
-        /*
-         * The pixel orientation is illustrated in the coordinate system figure.
-         * https://support.bluetechnix.at/wiki/File:CoordinateSystem.png
-         * Distances are in [m].
-         */
-        res = pmdGetDistances(hnd, distances , sizeof(float) * noOfColumns * noOfRows);
-        if (res != PMD_OK)
-        {
-          pmdGetLastError (hnd, err, 128);
-          ROS_ERROR_STREAM("Could not get the distance data from the current frame. : " << err);
-          pmdClose (hnd);
-          return 0;
-        }
-
-        // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
-        cv::Mat float_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
-        for (size_t row = 0; row < noOfRows; row++) {
-          for (size_t col = 0; col < noOfColumns; col++) {
-            // Observe the type used in the template
-            float_image.at<float>(noOfRows-row-1, noOfColumns-col-1) = distances[noOfColumns*row + col];
-          }
-        }
-
-        cv_bridge::CvImage depth_map_msg;
-        depth_map_msg.header.frame_id = "tf_argos3d";
-        depth_map_msg.header.stamp    = ros::Time::now();
-        depth_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
-        depth_map_msg.image           = float_image;
-
 	/*
 	 * Obtain PointClouds
 	 */
@@ -534,18 +500,65 @@ int publishData() {
 		return 1;
 	}
 
-    /*
-     * Obtain Flag Values
-     */
-    unsigned flags[noOfRows * noOfColumns];
-    res = pmdGetFlags (hnd, flags, sizeof(flags));
-    if (res != PMD_OK)
-    {
-        pmdGetLastError (hnd, err, 128);
-        ROS_ERROR_STREAM("Could not get flags: " << err);
-        pmdClose (hnd);
-        return 1;
-    }
+        /*
+         * Obtain depth map
+         */
+	if (!distances)
+        {
+          // Xres and Yres are obtained from PMDDataDescription struct
+          distances = new float[noOfColumns * noOfRows];
+        }
+        /*
+         * The pixel orientation is illustrated in the coordinate system figure.
+         * https://support.bluetechnix.at/wiki/File:CoordinateSystem.png
+         * Distances are in [m].
+         */
+        res = pmdGetDistances(hnd, distances, sizeof(float) * noOfColumns * noOfRows);
+        if (res != PMD_OK)
+        {
+          pmdGetLastError (hnd, err, 128);
+          ROS_ERROR_STREAM("Could not get the distance data from the current frame. : " << err);
+          pmdClose (hnd);
+          return 0;
+        }
+
+        // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
+        cv::Mat float_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
+        for (size_t row = 0; row < noOfRows; row++) {
+          for (size_t col = 0; col < noOfColumns; col++) {
+            // Observe the type used in the template
+            float_image.at<float>(noOfRows-row-1, noOfColumns-col-1) = distances[noOfColumns*row + col];
+          }
+        }
+
+        cv_bridge::CvImage depth_map_msg;
+        depth_map_msg.header.frame_id = "tf_argos3d";
+        depth_map_msg.header.stamp    = ros::Time::now();
+        depth_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
+        depth_map_msg.image           = float_image;
+
+        /*
+         * Obtain Flag Values
+         */
+        unsigned flags[noOfRows * noOfColumns];
+        res = pmdGetFlags (hnd, flags, sizeof(flags));
+        if (res != PMD_OK)
+        {
+          pmdGetLastError (hnd, err, 128);
+          ROS_ERROR_STREAM("Could not get flags: " << err);
+          pmdClose (hnd);
+          return 1;
+        }
+
+        /*
+         * Remove invalid pixels
+         */
+        const unsigned int INVALID = PMD_FLAG_INVALID | PMD_FLAG_LOW_SIGNAL | PMD_FLAG_INCONSISTENT;
+        for (size_t i = 0; i < noOfRows * noOfColumns; ++i)
+        {
+          if (flags[i] & INVALID)
+            distances[i] = std::numeric_limits<float>::quiet_NaN();
+        }
 
 	/*
 	 * Creating the pointcloud
@@ -609,9 +622,13 @@ int publishData() {
         // Convert to boost::shared_ptr<sensor_msgs::Image> before publishing.
         pub_distances.publish( depth_map_msg.toImageMsg() );
 
-        boost::shared_ptr<sensor_msgs::CameraInfo> camera_info_msg = getCameraInfo();
-        if (camera_info_msg)
+        if (!camera_info_msg)
+          camera_info_msg = getCameraInfo();
+        else
+        {
+          camera_info_msg->header.stamp = ros::Time::now();
           pub_camera_info.publish(camera_info_msg);
+        }
 
 	return 1;
 }
