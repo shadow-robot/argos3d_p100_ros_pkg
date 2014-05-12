@@ -424,7 +424,6 @@ int publishData() {
         depth_map_msg.header.stamp    = ros::Time::now();
         depth_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
         depth_map_msg.image           = float_image;
-        boost::shared_ptr<sensor_msgs::Image> ros_image = depth_map_msg.toImageMsg();
 
 	/*
 	 * Obtain PointClouds
@@ -527,7 +526,8 @@ int publishData() {
 	#endif
 		pub_non_filtered.publish (msg_non_filtered);
 
-        pub_distances.publish(depth_map_msg.toImageMsg());
+        // Convert to boost::shared_ptr<sensor_msgs::Image> before publishing.
+        pub_distances.publish( depth_map_msg.toImageMsg() );
 
 	return 1;
 }
