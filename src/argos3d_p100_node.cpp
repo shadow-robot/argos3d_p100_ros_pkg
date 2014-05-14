@@ -103,7 +103,8 @@ ros::Publisher pub_non_filtered;
 ros::Publisher pub_filtered;
 ros::Publisher pub_camera_info;
 
-boost::shared_ptr<image_transport::ImageTransport> it_depth_image;
+boost::shared_ptr<image_transport::ImageTransport> it_image;
+image_transport::Publisher pub_amplitude_image;
 image_transport::Publisher pub_depth_image;
 
 boost::shared_ptr<sensor_msgs::CameraInfo> camera_info_msg;
@@ -373,7 +374,10 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
         pub_camera_info = nh.advertise<sensor_msgs::CameraInfo> ("depth/camera_info", 1);
 
         // Use image transport
-        pub_depth_image = it_depth_image->advertise("depth/image", 1);
+        //   To view the image
+        //   $ rosrun image_view image_view image:=/amplitude/image
+        pub_amplitude_image = it_image->advertise("amplitude/image", 1);
+        pub_depth_image = it_image->advertise("depth/image", 1);
 
         dataPublished = true;
 
@@ -466,7 +470,7 @@ boost::shared_ptr<sensor_msgs::CameraInfo> getCameraInfo()
  * @brief Convert the depth map to sensor_msgs::Image.
  *
  */
-boost::shared_ptr<sensor_msgs::Image> depthMaptoImageMsg()
+boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
 {
   // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
   cv::Mat float_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
@@ -484,6 +488,31 @@ boost::shared_ptr<sensor_msgs::Image> depthMaptoImageMsg()
   depth_map_msg.image           = float_image;
 
   return depth_map_msg.toImageMsg();
+}
+
+/**
+ *
+ * @brief Convert the amplitude map to sensor_msgs::Image.
+ *
+ */
+boost::shared_ptr<sensor_msgs::Image> amplitudeMapToImageMsg()
+{
+  // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
+  cv::Mat float_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
+  for (size_t row = 0; row < noOfRows; row++) {
+    for (size_t col = 0; col < noOfColumns; col++) {
+      // Observe the type used in the template
+      float_image.at<float>(noOfRows-row-1, noOfColumns-col-1) = amplitudes[noOfColumns*row + col];
+    }
+  }
+
+  cv_bridge::CvImage amplitude_map_msg;
+  amplitude_map_msg.header.frame_id = frame_id;
+  amplitude_map_msg.header.stamp    = ros::Time::now();
+  amplitude_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
+  amplitude_map_msg.image           = float_image;
+
+  return amplitude_map_msg.toImageMsg();
 }
 
 /**
@@ -641,7 +670,8 @@ int publishData() {
 		pub_non_filtered.publish (msg_non_filtered);
 
         // Convert to boost::shared_ptr<sensor_msgs::Image> before publishing.
-        pub_depth_image.publish(depthMaptoImageMsg());
+        pub_amplitude_image.publish(amplitudeMapToImageMsg());
+        pub_depth_image.publish(depthMapToImageMsg());
 
         if (!camera_info_msg)
           camera_info_msg = getCameraInfo();
@@ -667,7 +697,7 @@ int main(int argc, char *argv[]) {
 	ros::init (argc, argv, "argos3d_p100");
 	ros::NodeHandle nh;
 
-        it_depth_image = boost::make_shared<image_transport::ImageTransport>(nh);
+        it_image = boost::make_shared<image_transport::ImageTransport>(nh);
 
         if (nh.getParam("frame_id", frame_id))
         {
