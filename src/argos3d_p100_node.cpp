@@ -330,7 +330,10 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
         if (res != PMD_OK)
 	{
           pmdGetLastError (0, err, 128);
-          ROS_ERROR_STREAM("Could not execute source command: " << err);
+          ROS_ERROR_STREAM("Failed to load the calibration file '"
+                           << calib_file
+                           << "': "
+                           << err);
           pmdClose (hnd);
           return 0;
 	}
@@ -340,7 +343,7 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	if (res != PMD_OK)
 	{
 		pmdGetLastError (0, err, 128);
-		ROS_ERROR_STREAM("Could not execute source command: " << err);
+		ROS_ERROR_STREAM("Could not determine whether the calibration file is loaded or not: " << err);
 		pmdClose (hnd);
 		return 0;
 	}
