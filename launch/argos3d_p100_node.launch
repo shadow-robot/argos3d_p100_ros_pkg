@@ -1,4 +1,5 @@
 <launch>
   <node name="argos3d_p100_node" pkg="argos3d_p100" type="argos3d_p100_node" respawn="false" output="screen" />
-  <param name="frame_id" value="camera_base_link" type="str" />
+  <param name="argos3d_p100_frame_id" value="camera_base_link" type="str" />
+  <param name="argos3d_p100_calib_file" value="$(find argos3d_p100)/calibration/11220935.dat" type="str" />
 </launch>

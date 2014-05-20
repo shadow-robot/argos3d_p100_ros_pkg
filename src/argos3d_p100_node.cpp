@@ -311,16 +311,29 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 		return 0;
 	}
 
+        std::string LoadCalibrationData("LoadCalibrationData ");
+        std::string calib_file;
+        if (nh.getParam("argos3d_p100_calib_file", calib_file))
+        {
+          ROS_INFO("Got param: %s", calib_file.c_str());
+          LoadCalibrationData += calib_file;
+        }
+        else
+        {
+          ROS_ERROR("Failed to get param 'argos3d_p100_calib_file'");
+          return 0;
+        }
+
 	char result[128];
-	//result[0] = 0;
-        //res = pmdSourceCommand( hnd, result, 128, "LoadCalibrationData 11220935.dat");
-        //if (res != PMD_OK)
-	//{
-	//	pmdGetLastError (0, err, 128);
-	//	ROS_ERROR_STREAM("Could not execute source command: " << err);
-	//	pmdClose (hnd);
-	//	return 0;
-	//}
+	result[0] = 0;
+        res = pmdSourceCommand( hnd, result, 128, LoadCalibrationData.c_str() );
+        if (res != PMD_OK)
+	{
+          pmdGetLastError (0, err, 128);
+          ROS_ERROR_STREAM("Could not execute source command: " << err);
+          pmdClose (hnd);
+          return 0;
+	}
 
         result[0] = 0;
 	res = pmdSourceCommand(hnd, result, sizeof(result), "IsCalibrationDataLoaded");
@@ -669,13 +682,13 @@ int main(int argc, char *argv[]) {
 
         it_depth_image = boost::make_shared<image_transport::ImageTransport>(nh);
 
-        if (nh.getParam("frame_id", frame_id))
+        if (nh.getParam("argos3d_p100_frame_id", frame_id))
         {
           ROS_INFO("Got param: %s", frame_id.c_str());
         }
         else
         {
-          ROS_ERROR("Failed to get param 'frame_id'");
+          ROS_ERROR("Failed to get param 'argos3d_p100_frame_id'");
         }
 
 	dynamic_reconfigure::Server<argos3d_p100::argos3d_p100Config> srv;
