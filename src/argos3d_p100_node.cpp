@@ -472,6 +472,7 @@ boost::shared_ptr<sensor_msgs::CameraInfo> getCameraInfo()
 boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
 {
   /*
+   * Distances are in [m].
    * CV_16U - 16-bit unsigned integers ( 0..65535 )
    * CV_16S - 16-bit signed integers ( -32768..32767 )
    */
@@ -500,6 +501,7 @@ boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
 boost::shared_ptr<sensor_msgs::Image> amplitudeMapToImageMsg()
 {
   /*
+   * Amplitudes are raw values between 0 and 65535.
    * CV_16U - 16-bit unsigned integers ( 0..65535 )
    * CV_16S - 16-bit signed integers ( -32768..32767 )
    */
@@ -558,6 +560,7 @@ int publishData() {
 
 	/*
 	 * Obtain Amplitude Values
+         * Amplitudes are raw values between 0 and 65535.
 	 */
 	if (!amplitudes)
 		amplitudes = new float [noOfRows * noOfColumns];
