@@ -487,7 +487,7 @@ boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
   cv_bridge::CvImage depth_map_msg;
   depth_map_msg.header.frame_id = frame_id;
   depth_map_msg.header.stamp    = ros::Time::now();
-  depth_map_msg.encoding        = ensor_msgs::image_encodings::MONO16;
+  depth_map_msg.encoding        = sensor_msgs::image_encodings::MONO16;
   depth_map_msg.image           = gray_image;
 
   return depth_map_msg.toImageMsg();
