@@ -51,6 +51,7 @@
 #include <pcl/point_types.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
@@ -472,20 +473,23 @@ boost::shared_ptr<sensor_msgs::CameraInfo> getCameraInfo()
  */
 boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
 {
-  // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
-  cv::Mat float_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
+  /*
+   * CV_16U - 16-bit unsigned integers ( 0..65535 )
+   * CV_16S - 16-bit signed integers ( -32768..32767 )
+   */
+  cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_16U);
   for (size_t row = 0; row < noOfRows; row++) {
     for (size_t col = 0; col < noOfColumns; col++) {
       // Observe the type used in the template
-      float_image.at<float>(noOfRows-row-1, noOfColumns-col-1) = distances[noOfColumns*row + col];
+      gray_image.at<float>(noOfRows-row-1, noOfColumns-col-1) = distances[noOfColumns*row + col];
     }
   }
 
   cv_bridge::CvImage depth_map_msg;
   depth_map_msg.header.frame_id = frame_id;
   depth_map_msg.header.stamp    = ros::Time::now();
-  depth_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
-  depth_map_msg.image           = float_image;
+  depth_map_msg.encoding        = sensor_msgs::image_encodings::MONO16;
+  depth_map_msg.image           = gray_image;
 
   return depth_map_msg.toImageMsg();
 }
@@ -497,20 +501,26 @@ boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
  */
 boost::shared_ptr<sensor_msgs::Image> amplitudeMapToImageMsg()
 {
-  // http://answers.ros.org/question/9765/how-to-convert-cvmat-to-sensor_msgsimageptr/
-  cv::Mat float_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
+  /*
+   * CV_16U - 16-bit unsigned integers ( 0..65535 )
+   * CV_16S - 16-bit signed integers ( -32768..32767 )
+   */
+  cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_16U);
   for (size_t row = 0; row < noOfRows; row++) {
     for (size_t col = 0; col < noOfColumns; col++) {
       // Observe the type used in the template
-      float_image.at<float>(noOfRows-row-1, noOfColumns-col-1) = amplitudes[noOfColumns*row + col];
+      gray_image.at<float>(noOfRows-row-1, noOfColumns-col-1) = amplitudes[noOfColumns*row + col];
     }
   }
+
+  cv::Mat rgb_image;
+  cvtColor(gray_image, rgb_image, CV_GRAY2RGB);
 
   cv_bridge::CvImage amplitude_map_msg;
   amplitude_map_msg.header.frame_id = frame_id;
   amplitude_map_msg.header.stamp    = ros::Time::now();
-  amplitude_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
-  amplitude_map_msg.image           = float_image;
+  amplitude_map_msg.encoding        = sensor_msgs::image_encodings::RGB16;
+  amplitude_map_msg.image           = rgb_image;
 
   return amplitude_map_msg.toImageMsg();
 }
