@@ -375,9 +375,7 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
         pub_camera_info = nh.advertise<sensor_msgs::CameraInfo> ("depth/camera_info", 1);
 
         // Use image transport
-        //   To view the image
-        //   $ rosrun image_view image_view image:=/amplitude/image
-        pub_amplitude_image = it_image->advertise("amplitude/image", 1);
+        pub_amplitude_image = it_image->advertise("rgb/image_color", 1);
         pub_depth_image = it_image->advertise("depth/image", 1);
 
         dataPublished = true;
