@@ -513,6 +513,7 @@ boost::shared_ptr<sensor_msgs::Image> amplitudeMapToImageMsg()
     }
   }
 
+  // Convert the grayscale image to a RGB color.
   cv::Mat rgb_image;
   cvtColor(gray_image, rgb_image, CV_GRAY2RGB);
 
