@@ -487,12 +487,8 @@ boost::shared_ptr<sensor_msgs::CameraInfo> getCameraInfo()
  */
 boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
 {
-  /*
-   * Distances are in [m].
-   * CV_16U - 16-bit unsigned integers ( 0..65535 )
-   * CV_16S - 16-bit signed integers ( -32768..32767 )
-   */
-  cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_16U);
+  // Distances are in [m].
+  cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
   for (size_t row = 0; row < noOfRows; row++) {
     for (size_t col = 0; col < noOfColumns; col++) {
       // Observe the type used in the template
@@ -503,7 +499,7 @@ boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
   cv_bridge::CvImage depth_map_msg;
   depth_map_msg.header.frame_id = frame_id;
   depth_map_msg.header.stamp    = ros::Time::now();
-  depth_map_msg.encoding        = sensor_msgs::image_encodings::MONO16;
+  depth_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
   depth_map_msg.image           = gray_image;
 
   return depth_map_msg.toImageMsg();
@@ -698,7 +694,7 @@ int publishData() {
 		pub_non_filtered.publish (msg_non_filtered);
 
         // Convert to boost::shared_ptr<sensor_msgs::Image> before publishing.
-        pub_amplitude_image.publish(amplitudeMapToImageMsg());
+                // pub_amplitude_image.publish(amplitudeMapToImageMsg());
         pub_depth_image.publish(depthMapToImageMsg());
 
         if (!camera_info_msg)
