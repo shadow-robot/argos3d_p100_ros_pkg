@@ -512,12 +512,8 @@ boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
  */
 boost::shared_ptr<sensor_msgs::Image> amplitudeMapToImageMsg()
 {
-  /*
-   * Amplitudes are raw values between 0 and 65535.
-   * CV_16U - 16-bit unsigned integers ( 0..65535 )
-   * CV_16S - 16-bit signed integers ( -32768..32767 )
-   */
-  cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_16U);
+  // Amplitudes are raw values between 0 and 65535.
+  cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
   for (size_t row = 0; row < noOfRows; row++) {
     for (size_t col = 0; col < noOfColumns; col++) {
       // Observe the type used in the template
@@ -525,9 +521,11 @@ boost::shared_ptr<sensor_msgs::Image> amplitudeMapToImageMsg()
     }
   }
 
-  // Convert the grayscale image to a RGB color.
+  cv::Mat gray_image_16;
+  gray_image.convertTo(gray_image_16, CV_16U);
+
   cv::Mat rgb_image;
-  cvtColor(gray_image, rgb_image, CV_GRAY2RGB);
+  cvtColor(gray_image_16, rgb_image, CV_GRAY2RGB);
 
   cv_bridge::CvImage amplitude_map_msg;
   amplitude_map_msg.header.frame_id = frame_id;
@@ -693,9 +691,9 @@ int publishData() {
 	#endif
 		pub_non_filtered.publish (msg_non_filtered);
 
-        // Convert to boost::shared_ptr<sensor_msgs::Image> before publishing.
-                // pub_amplitude_image.publish(amplitudeMapToImageMsg());
-        pub_depth_image.publish(depthMapToImageMsg());
+                // Convert to boost::shared_ptr<sensor_msgs::Image> before publishing.
+                pub_amplitude_image.publish(amplitudeMapToImageMsg());
+                pub_depth_image.publish(depthMapToImageMsg());
 
         if (!camera_info_msg)
           camera_info_msg = getCameraInfo();
