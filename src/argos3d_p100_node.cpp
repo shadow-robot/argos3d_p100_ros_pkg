@@ -527,11 +527,19 @@ boost::shared_ptr<sensor_msgs::Image> amplitudeMapToImageMsg()
   cv::Mat rgb_image;
   cvtColor(gray_image_16, rgb_image, CV_GRAY2RGB);
 
+  cv::Mat bayer_grbg_image;
+
+  /*
+   * http://wiki.ros.org/openni_camera
+   * rgb/image_raw (sensor_msgs/Image)
+   * Raw image from device. Format is Bayer GRBG for Kinect.
+   * Use the same format for PMD Nano!
+   */
   cv_bridge::CvImage amplitude_map_msg;
   amplitude_map_msg.header.frame_id = frame_id;
   amplitude_map_msg.header.stamp    = ros::Time::now();
-  amplitude_map_msg.encoding        = sensor_msgs::image_encodings::RGB16;
-  amplitude_map_msg.image           = rgb_image;
+  amplitude_map_msg.encoding        = sensor_msgs::image_encodings::BAYER_GRBG16;
+  amplitude_map_msg.image           = bayer_grbg_image;
 
   return amplitude_map_msg.toImageMsg();
 }
