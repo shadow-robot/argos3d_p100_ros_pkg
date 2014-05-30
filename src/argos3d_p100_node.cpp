@@ -512,6 +512,12 @@ boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
  */
 boost::shared_ptr<sensor_msgs::Image> amplitudeMapToImageMsg()
 {
+  /*
+   * Test
+   *   cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_16U); // and CV_16UC1?
+   *   gray_image.at<unsigned short>(noOfRows-row-1, noOfColumns-col-1) = amplitudes[noOfColumns*row + col];
+   */
+
   // Amplitudes are raw values between 0 and 65535.
   cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
   for (size_t row = 0; row < noOfRows; row++) {
@@ -521,6 +527,14 @@ boost::shared_ptr<sensor_msgs::Image> amplitudeMapToImageMsg()
     }
   }
 
+  /*
+   * Compare to
+   *   cv::Mat bayer16BitMat(height, width, CV_16UC1, inputBuffer);
+   *   cv::Mat bayer8BitMat = bayer16BitMat.clone();
+   *   // The 3rd parameter here scales the data by 1/16 so that it fits in 8 bits.
+   *   // Without it, convertTo() just seems to chop off the high order bits.
+   *   bayer8BitMat.convertTo(bayer8BitMat, CV_8UC1, 0.0625);
+   */
   cv::Mat gray_image_16;
   gray_image.convertTo(gray_image_16, CV_16U);
 
