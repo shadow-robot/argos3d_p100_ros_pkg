@@ -102,7 +102,8 @@ char err[128];
 bool dataPublished;
 ros::Publisher pub_non_filtered;
 ros::Publisher pub_filtered;
-ros::Publisher pub_camera_info;
+ros::Publisher pub_camera_info_1;
+ros::Publisher pub_camera_info_2;
 
 boost::shared_ptr<image_transport::ImageTransport> it_image;
 image_transport::Publisher pub_amplitude_image;
@@ -388,11 +389,13 @@ int initialize(int argc, char *argv[],ros::NodeHandle nh){
 	 */
 	pub_non_filtered = nh.advertise<PointCloud> ("depth_non_filtered/points", 1);
 	pub_filtered = nh.advertise<PointCloud> ("depth/points", 1);
-        pub_camera_info = nh.advertise<sensor_msgs::CameraInfo> ("depth/camera_info", 1);
+
+        pub_camera_info_1 = nh.advertise<sensor_msgs::CameraInfo> ("rgb/camera_info", 1);
+        pub_camera_info_2 = nh.advertise<sensor_msgs::CameraInfo> ("depth_registered/camera_info", 1);
 
         // Use image transport
         pub_amplitude_image = it_image->advertise("rgb/image_color", 1);
-        pub_depth_image = it_image->advertise("depth/image", 1);
+        pub_depth_image = it_image->advertise("depth_registered/image_raw", 1);
 
         dataPublished = true;
 
@@ -496,11 +499,16 @@ boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
     }
   }
 
+  cv::Mat gray_image_16;
+  double minVal, maxVal;
+  cv::minMaxLoc(gray_image, &minVal, &maxVal);
+  gray_image.convertTo(gray_image_16, CV_16U, 65535.0/(maxVal - minVal), -minVal * 65535.0/(maxVal - minVal));
+
   cv_bridge::CvImage depth_map_msg;
   depth_map_msg.header.frame_id = frame_id;
   depth_map_msg.header.stamp    = ros::Time::now();
-  depth_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_32FC1;
-  depth_map_msg.image           = gray_image;
+  depth_map_msg.encoding        = sensor_msgs::image_encodings::TYPE_16UC1;
+  depth_map_msg.image           = gray_image_16;
 
   return depth_map_msg.toImageMsg();
 }
@@ -512,48 +520,28 @@ boost::shared_ptr<sensor_msgs::Image> depthMapToImageMsg()
  */
 boost::shared_ptr<sensor_msgs::Image> amplitudeMapToImageMsg()
 {
-  /*
-   * Test
-   *   cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_16U); // and CV_16UC1?
-   *   gray_image.at<unsigned short>(noOfRows-row-1, noOfColumns-col-1) = amplitudes[noOfColumns*row + col];
-   */
-
   // Amplitudes are raw values between 0 and 65535.
-  cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_32F);
+  cv::Mat gray_image = cv::Mat::zeros(noOfRows, noOfColumns, CV_16U);
   for (size_t row = 0; row < noOfRows; row++) {
     for (size_t col = 0; col < noOfColumns; col++) {
       // Observe the type used in the template
-      gray_image.at<float>(noOfRows-row-1, noOfColumns-col-1) = amplitudes[noOfColumns*row + col];
+      gray_image.at<unsigned short>(noOfRows-row-1, noOfColumns-col-1) = amplitudes[noOfColumns*row + col];
     }
   }
 
-  /*
-   * Compare to
-   *   cv::Mat bayer16BitMat(height, width, CV_16UC1, inputBuffer);
-   *   cv::Mat bayer8BitMat = bayer16BitMat.clone();
-   *   // The 3rd parameter here scales the data by 1/16 so that it fits in 8 bits.
-   *   // Without it, convertTo() just seems to chop off the high order bits.
-   *   bayer8BitMat.convertTo(bayer8BitMat, CV_8UC1, 0.0625);
-   */
-  cv::Mat gray_image_16;
-  gray_image.convertTo(gray_image_16, CV_16U);
+  cv::Mat gray_image_8;
+  double minVal, maxVal;
+  cv::minMaxLoc(gray_image, &minVal, &maxVal);
+  gray_image.convertTo(gray_image_8, CV_8U, 255.0/(maxVal - minVal), -minVal * 255.0/(maxVal - minVal));
 
-  cv::Mat rgb_image;
-  cvtColor(gray_image_16, rgb_image, CV_GRAY2RGB);
+  cv::Mat bgr_image_8;
+  cvtColor(gray_image_8, bgr_image_8, CV_GRAY2BGR);
 
-  cv::Mat bayer_grbg_image;
-
-  /*
-   * http://wiki.ros.org/openni_camera
-   * rgb/image_raw (sensor_msgs/Image)
-   * Raw image from device. Format is Bayer GRBG for Kinect.
-   * Use the same format for PMD Nano!
-   */
   cv_bridge::CvImage amplitude_map_msg;
   amplitude_map_msg.header.frame_id = frame_id;
   amplitude_map_msg.header.stamp    = ros::Time::now();
-  amplitude_map_msg.encoding        = sensor_msgs::image_encodings::BAYER_GRBG16;
-  amplitude_map_msg.image           = bayer_grbg_image;
+  amplitude_map_msg.encoding        = sensor_msgs::image_encodings::BGR8;
+  amplitude_map_msg.image           = bgr_image_8;
 
   return amplitude_map_msg.toImageMsg();
 }
@@ -722,7 +710,8 @@ int publishData() {
         else
         {
           camera_info_msg->header.stamp = ros::Time::now();
-          pub_camera_info.publish(camera_info_msg);
+          pub_camera_info_1.publish(camera_info_msg);
+          pub_camera_info_2.publish(camera_info_msg);
         }
 
 	return 1;
